@@ -1,19 +1,11 @@
-import cv2  # OpenCV: Lectura y escritura de videos
-import numpy as np  # NumPy: Manejo de matrices de imagen
-import time  # time: Medición de tiempos
-import sys  # sys: Actualización de la barra en una sola línea (\r)
-import multiprocessing as mp  # multiprocessing: Creación de procesos paralelos
-import os  # os: Limpieza automática de archivos temporales
+import cv2
+import numpy as np
+import time
+import sys
+import multiprocessing as mp
+import os
 
-
-# ==========================================
-# 1. FUNCIÓN QUE EJECUTA CADA TRABAJADOR
-# ==========================================
 def procesar_bloque_video(id_proceso, ruta_entrada, ruta_salida_temp, inicio_frame, fin_frame, ancho, alto, fps, cola):
-    """
-    Función asignada a cada trabajador (worker).
-    Procesa el rango específico de fotogramas [inicio_frame, fin_frame).
-    """
     cap = cv2.VideoCapture(ruta_entrada)
     cap.set(cv2.CAP_PROP_POS_FRAMES, inicio_frame)
 
@@ -28,7 +20,6 @@ def procesar_bloque_video(id_proceso, ruta_entrada, ruta_salida_temp, inicio_fra
         if not ret:
             break
 
-        # --- CONVERSIÓN ULTRA RÁPIDA (OPENCV NATIVO) ---
         gris = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_bn = cv2.cvtColor(gris, cv2.COLOR_GRAY2BGR)
 
@@ -37,7 +28,6 @@ def procesar_bloque_video(id_proceso, ruta_entrada, ruta_salida_temp, inicio_fra
         frame_actual += 1
         cuadros_acumulados += 1
 
-        # Reportar en bloques de 30 fotogramas
         if cuadros_acumulados >= 30:
             cola.put(cuadros_acumulados)
             cuadros_acumulados = 0
@@ -48,21 +38,13 @@ def procesar_bloque_video(id_proceso, ruta_entrada, ruta_salida_temp, inicio_fra
     cap.release()
     out.release()
 
-
-# ==========================================
-# 2. BLOQUE PRINCIPAL (SOBREASIGNACIÓN A 8 WORKERS)
-# ==========================================
 if __name__ == '__main__':
-    # --- A. RUTAS Y SOBREASIGNACIÓN A 8 TRABAJADORES ---
     ruta_entrada = "Video/video.webm"
-    ruta_salida = "resultado/videobn_SOBREASIGNACION_8WORKERS.mp4"
+    ruta_salida = "resultado/videobn_8Hilos.mp4"
 
     nucleos_reales = mp.cpu_count()
-
-    # FORZAMOS EXACTAMENTE 8 TRABAJADORES SOBRE LOS NÚCLEOS REALES
     num_hilos = 8
 
-    # --- B. METADATOS DEL VIDEO ---
     cap = cv2.VideoCapture(ruta_entrada)
     if not cap.isOpened():
         print("No se pudo abrir el video de entrada. Verifica la ruta en Video/video.webm")
@@ -80,7 +62,6 @@ if __name__ == '__main__':
     print(f"Trabajadores asignados (Sobreasignación): {num_hilos} procesos")
     print(f"Iniciando prueba con {num_hilos} trabajadores en paralelo...\n")
 
-    # --- C. REPARTICIÓN DEL TRABAJO EN 8 PARTES ---
     cola = mp.Queue()
     frames_por_hilo = total_frames // num_hilos
 
@@ -98,13 +79,11 @@ if __name__ == '__main__':
         p = mp.Process(target=procesar_bloque_video, args=args)
         procesos.append(p)
 
-    # --- D. EJECUCIÓN PARALELA Y CRONÓMETRO ---
     inicio = time.time()
 
     for p in procesos:
         p.start()
 
-    # --- E. MONITOREO EN TIEMPO REAL (\r) ---
     frames_completados = 0
     while frames_completados < total_frames:
         while not cola.empty():
@@ -127,7 +106,6 @@ if __name__ == '__main__':
     for p in procesos:
         p.join()
 
-    # --- F. ENSAMBLADO FINAL DE LAS 8 PARTES TEMPORALES ---
     print("Uniendo las 8 partes temporales generadas...")
     out_final = cv2.VideoWriter(ruta_salida, cv2.VideoWriter_fourcc(*'mp4v'), fps, (ancho, alto), isColor=True)
 
@@ -143,7 +121,6 @@ if __name__ == '__main__':
 
     out_final.release()
 
-    # --- G. RESULTADOS Y TIEMPO FINAL ---
     fin = time.time()
     tiempo_total = fin - inicio
 
